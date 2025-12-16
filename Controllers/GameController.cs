@@ -1,74 +1,103 @@
-using Microsoft.AspNetCore.Mvc;
+п»їusing Microsoft.AspNetCore.Mvc;
 using TicTacToe.Models;
-using System.Linq;
+using System.Diagnostics;
 
 namespace TicTacToe.Controllers
 {
     public class GameController : Controller
     {
-        // ВАЖНО: Для AJAX, лучше НЕ использовать статику, а использовать сессии.
-        // Но для демонстрации сохраняем статику.
         private static Game _currentGame = new Game();
+        private readonly TelegramNotifier _tg;
 
-        // GET: /Game/Index (Возвращает HTML)
+        public GameController(TelegramNotifier tg)
+        {
+            _tg = tg ?? throw new ArgumentNullException(nameof(tg));
+        }
+
+        // GET: /Game/Index (РІРѕР·РІСЂР°С‰Р°РµС‚ HTML)
         public IActionResult Index()
         {
             if (_currentGame.Board.All(c => char.IsDigit(c.ToCharArray()[0])))
             {
-                _currentGame.StatusMessage = "Ваш ход (X)";
+                _currentGame.StatusMessage = "Р’Р°С€ С…РѕРґ (X)";
             }
             return View(_currentGame);
         }
 
-        // POST: /Game/PlayerMove (Обрабатывает AJAX-запросы)
+        // POST: /Game/PlayerMove (РѕР±СЂР°Р±Р°С‚С‹РІР°РµС‚ AJAX-Р·Р°РїСЂРѕСЃС‹)
         [HttpPost]
-        public IActionResult PlayerMove(int position)
+        public async Task<IActionResult> PlayerMove(int position)
         {
-            // Если это AJAX-запрос, мы возвращаем JSON
-            return ProcessMove(position);
+            return await ProcessMove(position);
         }
 
-        // POST: /Game/HandleMove (Обрабатывает POST-запросы от кнопок, если JS отключен, но лучше использовать JSON)
-        // Мы заставим кнопки в Index.cshtml использовать AJAX, но этот метод может остаться как запасной.
-        // В этом примере мы будем полагаться только на AJAX, поэтому можем оставить его как дубликат,
-        // или удалить, если вы уверены, что JS всегда включен.
+        // POST: /Game/HandleMove (СЂРµР·РµСЂРІРЅС‹Р№ РјРµС‚РѕРґ, РµСЃР»Рё JS РѕС‚РєР»СЋС‡РµРЅ)
         [HttpPost]
-        public IActionResult HandleMove(int position)
+        public async Task<IActionResult> HandleMove(int position)
         {
-            return ProcessMove(position);
+            return await ProcessMove(position);
         }
 
-
-        private IActionResult ProcessMove(int position)
+        private async Task<IActionResult> ProcessMove(int position)
         {
-            // --- ЛОГИКА ИГРЫ ---
-
             if (position < 1 || position > 9)
-            {
-                return Json(new { success = false, message = "Некорректная позиция хода." });
-            }
+                return Json(new { success = false, message = "РќРµРєРѕСЂСЂРµРєС‚РЅР°СЏ РїРѕР·РёС†РёСЏ С…РѕРґР°." });
 
             string currentPlayerMarker = _currentGame.Player.ToString();
             string computerMarker = _currentGame.Computer.ToString();
 
             if (_currentGame.Board[position - 1] == currentPlayerMarker || _currentGame.Board[position - 1] == computerMarker)
             {
-                return Json(new { success = false, board = _currentGame.Board, status = "Эта клетка уже занята. Выберите другую.", isGameOver = false });
+                return Json(new
+                {
+                    success = false,
+                    board = _currentGame.Board,
+                    status = "Р­С‚Р° РєР»РµС‚РєР° СѓР¶Рµ Р·Р°РЅСЏС‚Р°. Р’С‹Р±РµСЂРёС‚Рµ РґСЂСѓРіСѓСЋ.",
+                    isGameOver = false
+                });
             }
 
             _currentGame.PlayerMove(position);
-            string statusMessage = "Ход компьютера...";
+            string statusMessage = "РҐРѕРґ РєРѕРјРїСЊСЋС‚РµСЂР°...";
 
             if (_currentGame.CheckForWinner(_currentGame.Player))
             {
                 var promoCode = _currentGame.GeneratePromoCode();
-                statusMessage = $"Вы победили! Ваш промокод: {promoCode}";
-                return Json(new { success = true, board = _currentGame.Board, status = statusMessage, isGameOver = true, winner = "Player", promo = promoCode });
+                statusMessage = $"Р’С‹ РїРѕР±РµРґРёР»Рё! Р’Р°С€ РїСЂРѕРјРѕРєРѕРґ: {promoCode}";
+
+                try
+                {
+                    await _tg.SendAsync($"РџРѕР±РµРґР° РёРіСЂРѕРєР° рџЋ‰ РџСЂРѕРјРѕРєРѕРґ: {promoCode}");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё СЃРѕРѕР±С‰РµРЅРёСЏ РІ Telegram: {ex.Message}");
+                }
+
+                return Json(new
+                {
+                    success = true,
+                    board = _currentGame.Board,
+                    status = statusMessage,
+                    isGameOver = true,
+                    winner = "Player",
+                    promo = promoCode
+                });
             }
 
             if (_currentGame.IsBoardFull())
             {
-                statusMessage = "Ничья!";
+                statusMessage = "РќРёС‡СЊСЏ!";
+
+                try
+                {
+                    await _tg.SendAsync("РќРёС‡СЊСЏ РІ РёРіСЂРµ РєСЂРµСЃС‚РёРєРё-РЅРѕР»РёРєРё.");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё СЃРѕРѕР±С‰РµРЅРёСЏ РІ Telegram: {ex.Message}");
+                }
+
                 return Json(new { success = true, board = _currentGame.Board, status = statusMessage, isGameOver = true, winner = "Draw" });
             }
 
@@ -76,23 +105,40 @@ namespace TicTacToe.Controllers
 
             if (_currentGame.CheckForWinner(_currentGame.Computer))
             {
-                statusMessage = "Компьютер победил! Попробуйте снова.";
+                statusMessage = "РљРѕРјРїСЊСЋС‚РµСЂ РїРѕР±РµРґРёР»! РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°.";
+
+                try
+                {
+                    await _tg.SendAsync("РџРѕР±РµРґР° РєРѕРјРїСЊСЋС‚РµСЂР°. РРіСЂРѕРє РїСЂРѕРёРіСЂР°Р».");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё СЃРѕРѕР±С‰РµРЅРёСЏ РІ Telegram: {ex.Message}");
+                }
+
                 return Json(new { success = true, board = _currentGame.Board, status = statusMessage, isGameOver = true, winner = "Computer" });
             }
 
-            statusMessage = "Ваш ход (X)";
-
-            // Возвращаем текущее состояние, если игра продолжается
+            statusMessage = "Р’Р°С€ С…РѕРґ (X)";
             return Json(new { success = true, board = _currentGame.Board, status = statusMessage, isGameOver = false });
         }
 
-        // POST: /Game/Restart (Возвращает JSON)
+        // POST: /Game/Restart (СЃР±СЂР°СЃС‹РІР°РµС‚ РёРіСЂСѓ)
         [HttpPost]
-        public IActionResult Restart()
+        public async Task<IActionResult> Restart()
         {
             _currentGame = new Game();
-            // Возвращаем JSON с флагом и новым статусом
-            return Json(new { success = true, message = "Игра сброшена", board = _currentGame.Board, status = "Ваш ход (X)" });
+
+            try
+            {
+                await _tg.SendAsync("РРіСЂР° СЃР±СЂРѕС€РµРЅР° (Restart).");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё СЃРѕРѕР±С‰РµРЅРёСЏ РІ Telegram: {ex.Message}");
+            }
+
+            return Json(new { success = true, message = "РРіСЂР° СЃР±СЂРѕС€РµРЅР°", board = _currentGame.Board, status = "Р’Р°С€ С…РѕРґ (X)" });
         }
     }
 }

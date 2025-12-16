@@ -10,90 +10,184 @@
 }
 
 <style>
-    /* Чистые стили CSS Grid (те же, что и ранее) */
+    /* Пастельная тема: мягко, воздушно, без резкого контраста */
+    :root {
+        --bg-1: #FFF7FB; /* очень светлый розово-молочный */
+        --bg-2: #F3FBFF; /* очень светлый голубой */
+        --card: rgba(255,255,255,.78);
+        --card-border: rgba(140, 120, 160, .18);
+        --text: #3E3A45;
+        --muted: #6E6776;
+        --board-bg: rgba(255,255,255,.55);
+        --board-border: rgba(140, 120, 160, .18);
+        --cell-bg: rgba(255,255,255,.92);
+        --cell-hover: #F7F0FF; /* лёгкая сирень */
+        --cell-pressed: #EFE6FF;
+        --x: #E36B8B; /* пастельный розово-малиновый */
+        --o: #5BA9C8; /* пастельный бирюзово-голубой */
+
+        --disabled-bg: rgba(232, 226, 240, .75);
+        --focus: rgba(179, 140, 255, .45);
+        --btn: #BFA6FF; /* лавандовый */
+        --btn-hover: #AD92FF;
+        --btn-text: #ffffff;
+        --radius-lg: 18px;
+        --radius-md: 14px;
+        --shadow: 0 18px 55px rgba(40, 20, 60, .10);
+    }
+
     body {
-        font-family: Arial, sans-serif;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
         margin: 0;
         padding: 0;
-        background-color: #f4f4f9;
+        min-height: 100vh;
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 100vh;
+        color: var(--text);
+        background: radial-gradient(900px 500px at 15% 15%, rgba(255, 214, 239, .55), transparent 60%), radial-gradient(700px 420px at 85% 20%, rgba(197, 240, 255, .55), transparent 60%), linear-gradient(135deg, var(--bg-1), var(--bg-2));
     }
 
     .game-wrapper {
         text-align: center;
-        padding: 20px;
-        background: white;
-        border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        padding: 22px 22px 18px;
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        max-width: 420px;
+        width: calc(100% - 32px);
     }
 
     .title {
-        color: #333;
-        margin-bottom: 15px;
+        margin: 4px 0 10px;
+        font-size: 28px;
+        letter-spacing: .2px;
+        color: var(--text);
     }
 
     .status p {
-        font-size: 1.2em;
-        font-weight: bold;
-        color: #555;
+        margin: 0;
+        padding: 10px 12px;
+        font-size: 1.05em;
+        font-weight: 600;
+        color: var(--muted);
+        background: rgba(255,255,255,.6);
+        border: 1px solid rgba(140, 120, 160, .14);
+        border-radius: 12px;
     }
 
     .game-board {
         display: grid;
-        grid-template-columns: repeat(3, 100px);
-        grid-template-rows: repeat(3, 100px);
-        gap: 8px;
-        margin: 20px auto;
-        background-color: #333;
-        padding: 8px;
-        border-radius: 5px;
-        max-width: 320px;
+        grid-template-columns: repeat(3, 96px);
+        grid-template-rows: repeat(3, 96px);
+        gap: 10px;
+        margin: 18px auto 10px;
+        padding: 12px;
+        background: var(--board-bg);
+        border: 1px solid var(--board-border);
+        border-radius: var(--radius-lg);
+        max-width: 360px;
     }
 
+    /* Ячейки */
     .cell {
         display: flex;
         justify-content: center;
         align-items: center;
-        font-size: 2.5em;
-        font-weight: bold;
-        border-radius: 4px;
+        font-size: 2.35em;
+        font-weight: 800;
+        border-radius: var(--radius-md);
+        user-select: none;
+        background: var(--cell-bg);
+        border: 1px solid rgba(140, 120, 160, .14);
+        box-shadow: 0 10px 18px rgba(40, 20, 60, .06), inset 0 1px 0 rgba(255,255,255,.7);
+        transition: transform .08s ease, background-color .18s ease, box-shadow .18s ease, border-color .18s ease;
     }
 
     .playable {
-        background-color: #ffffff;
-        border: none;
         cursor: pointer;
     }
 
         .playable:hover {
-            background-color: #e0e0e0;
+            background: var(--cell-hover);
+            border-color: rgba(179, 140, 255, .35);
+            box-shadow: 0 14px 26px rgba(40, 20, 60, .10), inset 0 1px 0 rgba(255,255,255,.75);
+            transform: translateY(-1px);
         }
 
+        .playable:active {
+            background: var(--cell-pressed);
+            transform: translateY(0px) scale(0.99);
+        }
+
+    /* Цвета фигур */
     .X {
-        color: red;
+        color: var(--x);
+        text-shadow: 0 6px 18px rgba(227, 107, 139, .22);
     }
 
     .O {
-        color: blue;
+        color: var(--o);
+        text-shadow: 0 6px 18px rgba(91, 169, 200, .22);
     }
 
+    /* Заблокированные */
     .disabled-cell {
-        background-color: #cccccc;
+        background: var(--disabled-bg);
         cursor: default;
-        opacity: 0.8;
+        opacity: 0.92;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
     }
 
+    /* Кнопка */
     .restart-button {
-        padding: 10px 20px;
-        font-size: 1.1em;
-        background-color: #28a745;
-        color: white;
-        border: none;
-        border-radius: 5px;
+        padding: 11px 18px;
+        font-size: 1.05em;
+        font-weight: 700;
+        background: linear-gradient(180deg, var(--btn), #B79BFF);
+        color: var(--btn-text);
+        border: 0;
+        border-radius: 999px;
         cursor: pointer;
+        box-shadow: 0 14px 30px rgba(191, 166, 255, .30);
+        transition: transform .08s ease, filter .18s ease, box-shadow .18s ease;
+    }
+
+        .restart-button:hover {
+            filter: brightness(1.02);
+            box-shadow: 0 18px 36px rgba(191, 166, 255, .38);
+            transform: translateY(-1px);
+        }
+
+        .restart-button:active {
+            transform: translateY(0px);
+            box-shadow: 0 12px 24px rgba(191, 166, 255, .30);
+        }
+
+        /* Доступность: фокус */
+        .playable:focus-visible,
+        .restart-button:focus-visible {
+            outline: 3px solid var(--focus);
+            outline-offset: 3px;
+        }
+
+    {
+        grid-template-columns: repeat(3, 86px);
+        grid-template-rows: repeat(3, 86px);
+        gap: 9px;
+    }
+
+    .title {
+        font-size: 24px;
+    }
+
+    .cell {
+        font-size: 2.15em;
+    }
+
     }
 </style>
 
