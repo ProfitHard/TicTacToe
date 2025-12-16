@@ -1,0 +1,10 @@
+﻿@model string
+
+@{
+    ViewData["Title"] = "Результат";
+}
+
+<div class="text-center">
+    <h1>@Model</h1>
+    <a asp-controller="Game" asp-action="Index" class="btn btn-primary mt-3">Сыграть снова</a>
+</div>

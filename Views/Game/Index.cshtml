@@ -1,0 +1,262 @@
+﻿@model TicTacToe.Models.Game
+
+@{
+    ViewData["Title"] = "Крестики-Нолики";
+}
+
+<!-- Подключаем jQuery (предполагая, что вы используете стандартный шаблон ASP.NET Core) -->
+@{
+    Layout = "_Layout"; // Убедитесь, что ваш _Layout подключает jQuery
+}
+
+<style>
+    /* Чистые стили CSS Grid (те же, что и ранее) */
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f9;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+    }
+
+    .game-wrapper {
+        text-align: center;
+        padding: 20px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .title {
+        color: #333;
+        margin-bottom: 15px;
+    }
+
+    .status p {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #555;
+    }
+
+    .game-board {
+        display: grid;
+        grid-template-columns: repeat(3, 100px);
+        grid-template-rows: repeat(3, 100px);
+        gap: 8px;
+        margin: 20px auto;
+        background-color: #333;
+        padding: 8px;
+        border-radius: 5px;
+        max-width: 320px;
+    }
+
+    .cell {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 2.5em;
+        font-weight: bold;
+        border-radius: 4px;
+    }
+
+    .playable {
+        background-color: #ffffff;
+        border: none;
+        cursor: pointer;
+    }
+
+        .playable:hover {
+            background-color: #e0e0e0;
+        }
+
+    .X {
+        color: red;
+    }
+
+    .O {
+        color: blue;
+    }
+
+    .disabled-cell {
+        background-color: #cccccc;
+        cursor: default;
+        opacity: 0.8;
+    }
+
+    .restart-button {
+        padding: 10px 20px;
+        font-size: 1.1em;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+</style>
+
+<div class="game-wrapper">
+    <h1 class="title">Крестики-Нолики</h1>
+    <div class="status"><p id="status-message">@Model.StatusMessage</p></div>
+
+    <!-- Общий контейнер для сетки -->
+    <div class="game-board" id="game-board">
+
+        @for (int i = 0; i < 9; i++)
+        {
+            int position = i + 1;
+            string cellValue = Model.Board[i];
+
+            bool isOccupied = cellValue == "X" || cellValue == "O";
+
+            // ВСЕ ячейки становятся кликабельными элементами (div),
+            // которые будут ловить клик через JS.
+            <div class="cell @(isOccupied ? "disabled-cell " + cellValue : "playable")"
+                 data-position="@position"
+                 data-occupied="@(isOccupied ? "true" : "false")">
+                @cellValue
+            </div>
+        }
+    </div>
+
+
+    <!-- Кнопка рестарта (остается как POST) -->
+    <form method="post" asp-action="Restart" asp-controller="Game" style="margin-top: 20px;">
+        <button type="button" id="restart-button" class="restart-button">Сыграть ещё раз</button>
+    </form>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        const $board = $('#game-board');
+        const $status = $('#status-message');
+
+        // --- ФУНКЦИИ ОБНОВЛЕНИЯ DOM ---
+
+        // Функция для обновления DOM на основе данных от сервера
+        function updateBoard(response) {
+            const newBoard = response.board;
+
+            $('.cell').each(function(index) {
+                const $cell = $(this);
+                const cellValue = newBoard[index];
+
+                $cell.text(cellValue);
+
+                // Сбрасываем все классы, кроме базовых
+                $cell.removeClass('disabled-cell X O playable');
+
+                if (cellValue === 'X' || cellValue === 'O') {
+                    // Ячейка занята
+                    $cell.addClass('disabled-cell ' + cellValue);
+                    $cell.removeAttr('data-position');
+                } else {
+                    // Ячейка свободна (это может быть либо цифра, либо пустая строка, если игра закончилась)
+                    $cell.addClass('playable');
+                    // Устанавливаем data-position обратно, если поле снова доступно
+                    $cell.attr('data-position', index + 1);
+                }
+            });
+        }
+
+        // Функция для отображения загрузки
+        function showLoading(isLoading) {
+            if (isLoading) {
+                $board.find('.playable').css('pointer-events', 'none');
+                $status.text('Обработка хода...');
+            } else {
+                $board.find('.playable').css('pointer-events', 'auto');
+            }
+        }
+
+        // Функция для сброса состояния игры (вызывается при полной перезагрузке)
+        function resetUIState() {
+             // Эта часть нужна только если игра завершилась, чтобы заблокировать клики
+             if ($status.text().includes("победил") || $status.text().includes("Ничья")) {
+                 $board.find('.playable').removeClass('playable').addClass('disabled-cell');
+                 $board.find('.playable').removeAttr('data-position');
+             }
+        }
+
+        // --- ОБРАБОТКА КЛИКОВ (AJAX) ---
+
+        $board.on('click', '.playable', function() {
+            const position = $(this).data('position');
+
+            showLoading(true);
+
+            $.ajax({
+                url: '@Url.Action("PlayerMove", "Game")',
+                type: 'POST',
+                data: { position: position },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        updateBoard(response); // Обновляем DOM
+                        $status.text(response.status);
+
+                        if (response.isGameOver) {
+                            showLoading(false);
+                            // Если игра окончена, блокируем все клики через класс
+                            $board.find('.playable').removeClass('playable').addClass('disabled-cell');
+                        } else {
+                             showLoading(false);
+                        }
+                    } else {
+                        $status.text(response.status || "Ошибка хода.");
+                        showLoading(false);
+                    }
+                },
+                error: function() {
+                    $status.text("Сетевая ошибка. Повторите попытку.");
+                    showLoading(false);
+                }
+            });
+        });
+
+        $('#restart-button').on('click', function() {
+        showLoading(true);
+
+        $.ajax({
+            url: '@Url.Action("Restart", "Game")',
+            type: 'POST',
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    // Используем ту же функцию updateBoard для полной перерисовки
+                    updateBoard(response);
+                    $status.text(response.status);
+                    showLoading(false);
+                } else {
+                    $status.text("Не удалось перезапустить игру.");
+                    showLoading(false);
+                }
+            },
+            error: function() {
+                $status.text("Ошибка при сбросе игры.");
+                showLoading(false);
+            }
+        });
+    });
+
+
+        // ------------------------------------------------------------------
+        // ВЫЗОВ ПРИ ПЕРВОЙ ЗАГРУЗКЕ СТРАНИЦЫ (ПОКРЫВАЕТ И ПЕРЕЗАГРУЗКУ ПОСЛЕ RESTART)
+        // ------------------------------------------------------------------
+
+        // Создаем фейковый ответ, чтобы обновить UI на основе текущего состояния,
+        // которое пришло с сервера (Model.Board)
+        const initialBoardData = @Html.Raw(Json.Serialize(Model.Board));
+        const initialStatus = @Html.Raw(Json.Serialize(Model.StatusMessage));
+
+        // Вызываем updateBoard с данными, которые уже пришли в представлении
+        updateBoard({ board: initialBoardData, status: initialStatus });
+        $status.text(initialStatus);
+
+        resetUIState(); // Проверяем, не нужно ли заблокировать игру сразу
+    });
+</script>
